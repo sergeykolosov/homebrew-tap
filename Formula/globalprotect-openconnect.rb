@@ -4,6 +4,7 @@ class GlobalprotectOpenconnect < Formula
   url "https://github.com/yuezk/GlobalProtect-openconnect/archive/refs/tags/v2.5.1.tar.gz"
   sha256 "b991582beb92628a9babee4f81abb0d93df2b6c7a3bfff4324b7f0e80444799e"
   license "GPL-3.0-only"
+  revision 1
 
   bottle do
     root_url "https://github.com/sergeykolosov/homebrew-tap/releases/download/globalprotect-openconnect-2.5.1"
