@@ -1,10 +1,9 @@
 class GlobalprotectOpenconnect < Formula
   desc "GlobalProtect VPN client based on OpenConnect, supports SSO with MFA, YubiKey"
   homepage "https://github.com/yuezk/GlobalProtect-openconnect"
-  url "https://github.com/yuezk/GlobalProtect-openconnect/archive/refs/tags/v2.5.1.tar.gz"
-  sha256 "b991582beb92628a9babee4f81abb0d93df2b6c7a3bfff4324b7f0e80444799e"
+  url "https://github.com/yuezk/GlobalProtect-openconnect/archive/refs/tags/v2.5.4.tar.gz"
+  sha256 "ac2252f579b853901e867aed56a1a9f6a65f77f1a1337017f13d0efed40b780d"
   license "GPL-3.0-only"
-  revision 1
 
   bottle do
     root_url "https://github.com/sergeykolosov/homebrew-tap/releases/download/globalprotect-openconnect-2.5.1_1"
@@ -31,6 +30,7 @@ class GlobalprotectOpenconnect < Formula
 
   on_linux do
     depends_on "cairo"
+    depends_on "dbus"
     depends_on "gdk-pixbuf"
     depends_on "glib"
     depends_on "gtk+3"
@@ -40,17 +40,11 @@ class GlobalprotectOpenconnect < Formula
     depends_on "zlib-ng-compat"
   end
 
-  # Git submodule: OpenConnect library source pinned to commit used by v2.5.1
+  # Git submodule: OpenConnect library source pinned to commit used by v2.5.4
   # (gitlab.com/openconnect/openconnect @ 0dcdff87, v9.12-255-g0dcdff87)
   resource "openconnect-src" do
     url "https://gitlab.com/openconnect/openconnect/-/archive/0dcdff87db65daf692dc323732831391d595d98d/openconnect-0dcdff87.tar.gz"
     sha256 "efb4a49ed9866c91b37ca95aad7a89aa092447e322c81d8508c05ef1254c01e3"
-  end
-
-  # Pinned to the same commit as the openconnect Homebrew formula
-  resource "vpnc-script" do
-    url "https://gitlab.com/openconnect/vpnc-scripts/-/raw/5b9e7e4c8e813cc6d95888e7e1d2992964270ec8/vpnc-script"
-    sha256 "dee08feb571dc788018b5d599e4a79177e6acc144d196a776a521ff5496fddb8"
   end
 
   def install
@@ -59,30 +53,25 @@ class GlobalprotectOpenconnect < Formula
 
     # Private vpnc-script path to avoid conflict with the openconnect formula
     # (whether installed or not), which installs it to etc/"vpnc/vpnc-script"
-    (libexec/"gpclient").install resource("vpnc-script")
-    chmod 0755, libexec/"gpclient/vpnc-script"
+    (libexec/"gpclient").install "packaging/files/usr/libexec/gpclient/vpnc-script"
 
-    # Patch hardcoded paths both for own and openconnect's scripts
+    # Use our libexec in the cross-platform vpnc-script search list, and in the
+    # Linux hipreport.sh path. The #[cfg]-gated macOS entries in this file point
+    # at standard Homebrew prefixes (aarch64: /opt/homebrew, x86_64: /usr/local)
     inreplace "crates/openconnect/src/vpn_utils.rs" do |s|
       s.gsub! "/etc/vpnc/vpnc-script",
               "#{opt_prefix}/libexec/gpclient/vpnc-script"
-      s.gsub! "/opt/homebrew/etc/vpnc/vpnc-script",
-              "#{HOMEBREW_PREFIX}/etc/vpnc/vpnc-script",
-              audit_result: false
       s.gsub! "/usr/libexec/gpclient/hipreport.sh",
               "#{opt_prefix}/libexec/gpclient/hipreport.sh"
-      s.gsub! "/opt/homebrew/opt/openconnect/libexec/openconnect/hipreport.sh",
-              "#{HOMEBREW_PREFIX}/opt/openconnect/libexec/openconnect/hipreport.sh",
-              audit_result: false
     end
 
+    # Patch Linux binary fallbacks; macOS #[cfg]-gated defaults upstream are OK
     inreplace "crates/common/src/constants.rs" do |s|
       s.gsub! "/usr/bin/gpclient", "#{bin}/gpclient"
       s.gsub! "/usr/bin/gpservice", "#{bin}/gpservice"
       s.gsub! "/usr/bin/gpgui-helper", "#{bin}/gpgui-helper"
       s.gsub! "/usr/bin/gpgui", "#{bin}/gpgui"
       s.gsub! "/usr/bin/gpauth", "#{bin}/gpauth"
-      s.gsub! "/opt/homebrew/", "#{HOMEBREW_PREFIX}/", audit_result: false
     end
 
     # Install only the CLI apps, GUI apps (gpgui-helper) are excluded because
