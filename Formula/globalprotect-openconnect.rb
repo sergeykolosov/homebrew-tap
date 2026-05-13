@@ -6,9 +6,9 @@ class GlobalprotectOpenconnect < Formula
   license "GPL-3.0-only"
 
   bottle do
-    root_url "https://github.com/sergeykolosov/homebrew-tap/releases/download/globalprotect-openconnect-2.5.1_1"
-    sha256 cellar: :any,                 arm64_tahoe:  "f4e23303c4e095a7457de768725cbfd2c3297ad2835a7420b11a0e23871030d1"
-    sha256 cellar: :any_skip_relocation, x86_64_linux: "36fc7975f9229e0a0ed0d4eedb6886eed3a60e47503e0a09817bffd5802ae918"
+    root_url "https://github.com/sergeykolosov/homebrew-tap/releases/download/globalprotect-openconnect-2.5.4"
+    sha256 cellar: :any,                 arm64_tahoe:  "04131e4aeca82aa0497c9c5590fa63851d46eeab3804c044a88d245ad98054a8"
+    sha256 cellar: :any_skip_relocation, x86_64_linux: "4f59fee991e4cb9699e721d5ac577fed0d7f97c3167b703b7274940d30711a10"
   end
 
   depends_on "autoconf" => :build
