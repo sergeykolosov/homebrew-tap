@@ -5,6 +5,12 @@ class GlobalprotectOpenconnectSlim < Formula
   sha256 "ac2252f579b853901e867aed56a1a9f6a65f77f1a1337017f13d0efed40b780d"
   license "GPL-3.0-only"
 
+  bottle do
+    root_url "https://github.com/sergeykolosov/homebrew-tap/releases/download/globalprotect-openconnect-slim-2.5.4"
+    sha256 cellar: :any,                 arm64_tahoe:  "d39fa915f3d43cf2e4e392ba02a164abe97510bbd50586483921865451de67b3"
+    sha256 cellar: :any_skip_relocation, x86_64_linux: "b03e43fc38e646daccd9107df1f1bd99253f687f8bbc01baff62c7a560d20617"
+  end
+
   depends_on "autoconf" => :build
   depends_on "automake" => :build
   depends_on "libtool" => :build
