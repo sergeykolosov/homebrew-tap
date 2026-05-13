@@ -7,8 +7,9 @@ class GlobalprotectOpenconnect < Formula
 
   bottle do
     root_url "https://github.com/sergeykolosov/homebrew-tap/releases/download/globalprotect-openconnect-2.5.4"
-    sha256 cellar: :any,                 arm64_tahoe:  "04131e4aeca82aa0497c9c5590fa63851d46eeab3804c044a88d245ad98054a8"
-    sha256 cellar: :any_skip_relocation, x86_64_linux: "4f59fee991e4cb9699e721d5ac577fed0d7f97c3167b703b7274940d30711a10"
+    rebuild 1
+    sha256 cellar: :any,                 arm64_tahoe:  "d1d6a6f2d58444cca9ad8067b91d569882d30c25b14c9f767687904c5827e1c9"
+    sha256 cellar: :any_skip_relocation, x86_64_linux: "89a57128d377371ee7cb018c2c0f2a975ed32ebb2fe04bbfb71938459c79340b"
   end
 
   depends_on "autoconf" => :build
