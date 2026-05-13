@@ -1,15 +1,9 @@
-class GlobalprotectOpenconnect < Formula
-  desc "GlobalProtect VPN client based on OpenConnect, supports SSO with MFA, YubiKey"
+class GlobalprotectOpenconnectSlim < Formula
+  desc "GlobalProtect VPN client (slim build, system-browser SSO; no embedded webview)"
   homepage "https://github.com/yuezk/GlobalProtect-openconnect"
   url "https://github.com/yuezk/GlobalProtect-openconnect/archive/refs/tags/v2.5.4.tar.gz"
   sha256 "ac2252f579b853901e867aed56a1a9f6a65f77f1a1337017f13d0efed40b780d"
   license "GPL-3.0-only"
-
-  bottle do
-    root_url "https://github.com/sergeykolosov/homebrew-tap/releases/download/globalprotect-openconnect-2.5.4"
-    sha256 cellar: :any,                 arm64_tahoe:  "04131e4aeca82aa0497c9c5590fa63851d46eeab3804c044a88d245ad98054a8"
-    sha256 cellar: :any_skip_relocation, x86_64_linux: "4f59fee991e4cb9699e721d5ac577fed0d7f97c3167b703b7274940d30711a10"
-  end
 
   depends_on "autoconf" => :build
   depends_on "automake" => :build
@@ -29,18 +23,12 @@ class GlobalprotectOpenconnect < Formula
   uses_from_macos "zlib"
 
   on_linux do
-    depends_on "cairo"
-    depends_on "dbus"
-    depends_on "gdk-pixbuf"
-    depends_on "glib"
-    depends_on "gtk+3"
-    depends_on "libsoup"
-    depends_on "webkitgtk"
-    depends_on "xz"
-    depends_on "zlib-ng-compat"
+    depends_on "xz"              # gpservice links xz2 -> liblzma
+    depends_on "zlib-ng-compat"  # Linuxbrew zlib replacement
   end
 
-  conflicts_with "globalprotect-openconnect-slim",
+  # Both formulae install gpclient/gpservice/gpauth to bin
+  conflicts_with "globalprotect-openconnect",
                  because: "both install gpclient, gpservice, and gpauth"
 
   # Git submodule: OpenConnect library source pinned to commit used by v2.5.4
@@ -77,12 +65,30 @@ class GlobalprotectOpenconnect < Formula
       s.gsub! "/usr/bin/gpauth", "#{bin}/gpauth"
     end
 
-    # Install only the CLI apps, GUI apps (gpgui-helper) are excluded because
-    # GUI version is a paid application
+    # Drop the unconditional gtk hard requirement from gpapi. Without this, the
+    # Linux build pulls gtk+3 + glib + their transitive chain (webkitgtk etc.)
+    # even when no tauri/webview feature is active. The crates/gpapi/src/utils/
+    # window.rs file that imports gtk is module-gated by `#[cfg(feature =
+    # "tauri")]` in mod.rs, and `browser-auth` doesn't activate gpapi/tauri, so
+    # leaving the file alone is safe — cargo never reaches its gtk imports.
+    inreplace "crates/gpapi/Cargo.toml", /^gtk = "0\.18"\n/, ""
 
-    system "cargo", "install", *std_cargo_args(path: "apps/gpclient")
-    system "cargo", "install", *std_cargo_args(path: "apps/gpservice")
-    system "cargo", "install", *std_cargo_args(path: "apps/gpauth")
+    # webview-auth used to pull tokio's rt-multi-thread feature transitively
+    # via tauri. Without it, gpauth's #[tokio::main] (default multi-thread
+    # flavor) fails to compile. Re-enable rt-multi-thread on the workspace
+    # tokio dep so the runtime stays multi-threaded as upstream intended.
+    inreplace "Cargo.toml",
+              'tokio = { version = "1" }',
+              'tokio = { version = "1", features = ["rt-multi-thread"] }'
+
+    # Drop --locked: Cargo.toml edit above desyncs Cargo.lock (no gpapi -> gtk).
+    # gpauth: --no-default-features disables `webview-auth` (its only default).
+    # The browser-auth path stays on via gpauth's unconditional dep declaration
+    # `auth = { features = ["browser-auth"] }` — no --features flag needed.
+    system "cargo", "install", *(std_cargo_args(path: "apps/gpclient")  - ["--locked"])
+    system "cargo", "install", *(std_cargo_args(path: "apps/gpservice") - ["--locked"])
+    system "cargo", "install", *(std_cargo_args(path: "apps/gpauth")    - ["--locked"]),
+           "--no-default-features"
 
     if OS.linux?
       inreplace "packaging/files/usr/lib/NetworkManager/dispatcher.d/pre-down.d/gpclient.down" do |s|
@@ -163,6 +169,9 @@ class GlobalprotectOpenconnect < Formula
   def caveats
     if OS.linux?
       <<~EOS
+        This is the slim build: gpauth uses the system browser for SSO
+        (no embedded webview, no gtk/webkitgtk runtime deps).
+
         NetworkManager dispatcher hooks were installed to:
 
           #{opt_pkgshare}/NetworkManager
@@ -186,8 +195,11 @@ class GlobalprotectOpenconnect < Formula
       EOS
     else
       <<~EOS
-        To enable browser-based (SSO) authentication, install the URL handler app
-        that forwards globalprotectcallback:// redirects to gpclient:
+        This is the slim build: gpauth uses the system browser for SSO
+        (no embedded webview).
+
+        Install the URL handler app that forwards globalprotectcallback://
+        redirects from the system browser back to gpclient:
 
           cp -r #{opt_prefix}/GlobalProtectURLHandler.app ~/Applications/
           /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \\
