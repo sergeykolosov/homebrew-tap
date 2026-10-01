@@ -1,8 +1,8 @@
 class GlobalprotectOpenconnect < Formula
   desc "GlobalProtect VPN client based on OpenConnect, supports SSO with MFA, YubiKey"
   homepage "https://github.com/yuezk/GlobalProtect-openconnect"
-  url "https://github.com/yuezk/GlobalProtect-openconnect/archive/refs/tags/v2.5.4.tar.gz"
-  sha256 "ac2252f579b853901e867aed56a1a9f6a65f77f1a1337017f13d0efed40b780d"
+  url "https://github.com/yuezk/GlobalProtect-openconnect/archive/refs/tags/v2.6.5.tar.gz"
+  sha256 "a0114aad41b2b43b48090769c02394849e2f3256e921f685e3d0feb61640b329"
   license "GPL-3.0-only"
 
   bottle do
@@ -44,7 +44,7 @@ class GlobalprotectOpenconnect < Formula
   conflicts_with "globalprotect-openconnect-slim",
                  because: "both install gpclient, gpservice, and gpauth"
 
-  # Git submodule: OpenConnect library source pinned to commit used by v2.5.4
+  # Git submodule: OpenConnect library source pinned to commit used by v2.6.5
   # (gitlab.com/openconnect/openconnect @ 0dcdff87, v9.12-255-g0dcdff87)
   resource "openconnect-src" do
     url "https://gitlab.com/openconnect/openconnect/-/archive/0dcdff87db65daf692dc323732831391d595d98d/openconnect-0dcdff87.tar.gz"
@@ -59,13 +59,13 @@ class GlobalprotectOpenconnect < Formula
     # (whether installed or not), which installs it to etc/"vpnc/vpnc-script"
     (libexec/"gpclient").install "packaging/files/usr/libexec/gpclient/vpnc-script"
 
-    # Use our libexec in the cross-platform vpnc-script search list, and in the
-    # Linux hipreport.sh path. The #[cfg]-gated macOS entries in this file point
+    # Use our libexec in the cross-platform vpnc-script search list, and first
+    # in the hipreport.sh one. The #[cfg]-gated macOS entries in this file point
     # at standard Homebrew prefixes (aarch64: /opt/homebrew, x86_64: /usr/local)
     inreplace "crates/openconnect/src/vpn_utils.rs" do |s|
       s.gsub! "/etc/vpnc/vpnc-script",
               "#{opt_prefix}/libexec/gpclient/vpnc-script"
-      s.gsub! "/usr/libexec/gpclient/hipreport.sh",
+      s.gsub! "/usr/local/libexec/gpclient/hipreport.sh",
               "#{opt_prefix}/libexec/gpclient/hipreport.sh"
     end
 
@@ -77,6 +77,14 @@ class GlobalprotectOpenconnect < Formula
       s.gsub! "/usr/bin/gpgui", "#{bin}/gpgui"
       s.gsub! "/usr/bin/gpauth", "#{bin}/gpauth"
     end
+
+    # `--version` embeds a commit, which the archive has no git metadata for;
+    # this also keeps CI's GITHUB_SHA (this tap's commit) out of the bottles
+    ENV["SOURCE_GIT_COMMIT"] = "Homebrew"
+
+    # Ensure that the `openssl` crate picks up the intended library: on macOS
+    # openssl-sys probes for Homebrew's `openssl@4` before `openssl@3`
+    ENV["OPENSSL_DIR"] = formula_opt_prefix("openssl@3")
 
     # Install only the CLI apps, GUI apps (gpgui-helper) are excluded because
     # GUI version is a paid application
