@@ -1,8 +1,8 @@
 class GlobalprotectOpenconnectSlim < Formula
   desc "GlobalProtect VPN client (slim build, system-browser SSO; no embedded webview)"
   homepage "https://github.com/yuezk/GlobalProtect-openconnect"
-  url "https://github.com/yuezk/GlobalProtect-openconnect/archive/refs/tags/v2.5.4.tar.gz"
-  sha256 "ac2252f579b853901e867aed56a1a9f6a65f77f1a1337017f13d0efed40b780d"
+  url "https://github.com/yuezk/GlobalProtect-openconnect/archive/refs/tags/v2.6.5.tar.gz"
+  sha256 "a0114aad41b2b43b48090769c02394849e2f3256e921f685e3d0feb61640b329"
   license "GPL-3.0-only"
 
   bottle do
@@ -37,7 +37,7 @@ class GlobalprotectOpenconnectSlim < Formula
   conflicts_with "globalprotect-openconnect",
                  because: "both install gpclient, gpservice, and gpauth"
 
-  # Git submodule: OpenConnect library source pinned to commit used by v2.5.4
+  # Git submodule: OpenConnect library source pinned to commit used by v2.6.5
   # (gitlab.com/openconnect/openconnect @ 0dcdff87, v9.12-255-g0dcdff87)
   resource "openconnect-src" do
     url "https://gitlab.com/openconnect/openconnect/-/archive/0dcdff87db65daf692dc323732831391d595d98d/openconnect-0dcdff87.tar.gz"
@@ -52,13 +52,13 @@ class GlobalprotectOpenconnectSlim < Formula
     # (whether installed or not), which installs it to etc/"vpnc/vpnc-script"
     (libexec/"gpclient").install "packaging/files/usr/libexec/gpclient/vpnc-script"
 
-    # Use our libexec in the cross-platform vpnc-script search list, and in the
-    # Linux hipreport.sh path. The #[cfg]-gated macOS entries in this file point
+    # Use our libexec in the cross-platform vpnc-script search list, and first
+    # in the hipreport.sh one. The #[cfg]-gated macOS entries in this file point
     # at standard Homebrew prefixes (aarch64: /opt/homebrew, x86_64: /usr/local)
     inreplace "crates/openconnect/src/vpn_utils.rs" do |s|
       s.gsub! "/etc/vpnc/vpnc-script",
               "#{opt_prefix}/libexec/gpclient/vpnc-script"
-      s.gsub! "/usr/libexec/gpclient/hipreport.sh",
+      s.gsub! "/usr/local/libexec/gpclient/hipreport.sh",
               "#{opt_prefix}/libexec/gpclient/hipreport.sh"
     end
 
@@ -71,30 +71,22 @@ class GlobalprotectOpenconnectSlim < Formula
       s.gsub! "/usr/bin/gpauth", "#{bin}/gpauth"
     end
 
-    # Drop the unconditional gtk hard requirement from gpapi. Without this, the
-    # Linux build pulls gtk+3 + glib + their transitive chain (webkitgtk etc.)
-    # even when no tauri/webview feature is active. The crates/gpapi/src/utils/
-    # window.rs file that imports gtk is module-gated by `#[cfg(feature =
-    # "tauri")]` in mod.rs, and `browser-auth` doesn't activate gpapi/tauri, so
-    # leaving the file alone is safe — cargo never reaches its gtk imports.
-    inreplace "crates/gpapi/Cargo.toml", /^gtk = "0\.18"\n/, ""
+    # `--version` embeds a commit, which the archive has no git metadata for;
+    # this also keeps CI's GITHUB_SHA (this tap's commit) out of the bottles
+    ENV["SOURCE_GIT_COMMIT"] = "Homebrew"
 
-    # webview-auth used to pull tokio's rt-multi-thread feature transitively
-    # via tauri. Without it, gpauth's #[tokio::main] (default multi-thread
-    # flavor) fails to compile. Re-enable rt-multi-thread on the workspace
-    # tokio dep so the runtime stays multi-threaded as upstream intended.
-    inreplace "Cargo.toml",
-              'tokio = { version = "1" }',
-              'tokio = { version = "1", features = ["rt-multi-thread"] }'
+    # Ensure that the `openssl` crate picks up the intended library: on macOS
+    # openssl-sys probes for Homebrew's `openssl@4` before `openssl@3`
+    ENV["OPENSSL_DIR"] = formula_opt_prefix("openssl@3")
 
-    # Drop --locked: Cargo.toml edit above desyncs Cargo.lock (no gpapi -> gtk).
     # gpauth: --no-default-features disables `webview-auth` (its only default).
     # The browser-auth path stays on via gpauth's unconditional dep declaration
     # `auth = { features = ["browser-auth"] }` — no --features flag needed.
-    system "cargo", "install", *(std_cargo_args(path: "apps/gpclient")  - ["--locked"])
-    system "cargo", "install", *(std_cargo_args(path: "apps/gpservice") - ["--locked"])
-    system "cargo", "install", *(std_cargo_args(path: "apps/gpauth")    - ["--locked"]),
-           "--no-default-features"
+    # Since v2.6.0 gpapi only pulls gtk with `tauri` and gpauth enables tokio's
+    # rt-multi-thread itself, so Cargo.toml needs no edits and --locked holds.
+    system "cargo", "install", *std_cargo_args(path: "apps/gpclient")
+    system "cargo", "install", *std_cargo_args(path: "apps/gpservice")
+    system "cargo", "install", *std_cargo_args(path: "apps/gpauth"), "--no-default-features"
 
     if OS.linux?
       inreplace "packaging/files/usr/lib/NetworkManager/dispatcher.d/pre-down.d/gpclient.down" do |s|
